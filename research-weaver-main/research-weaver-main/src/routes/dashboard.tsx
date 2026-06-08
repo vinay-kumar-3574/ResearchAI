@@ -69,6 +69,7 @@ function Dashboard() {
   const { user } = useAuth();
   const navigate = useNavigate();
   const [topic, setTopic] = useState("");
+  const [depth, setDepth] = useState<"quick" | "deep">("deep");
   const [sessions, setSessions] = useState<ResearchSession[]>([]);
   const [stats, setStats] = useState<DashboardStats | null>(null);
   const [running, setRunning] = useState(false);
@@ -116,6 +117,7 @@ function Dashboard() {
 
     startResearch(
       topic,
+      depth,
       user.id,
       // onUpdate
       (update: StageUpdate) => {
@@ -207,18 +209,52 @@ function Dashboard() {
                   placeholder="e.g., Latest advancements in quantum error correction 2025"
                 />
               </div>
+            </div>
+            
+            <div className="mt-4 flex flex-col md:flex-row gap-4 items-end">
+              <div className="flex-1 w-full">
+                <label className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider mb-2 block">
+                  Research Depth
+                </label>
+                <div className="flex gap-3">
+                  <button
+                    onClick={() => setDepth("quick")}
+                    disabled={running}
+                    className={`flex-1 py-3 px-4 rounded-xl border text-left transition-all ${
+                      depth === "quick" 
+                        ? "bg-brand/10 border-brand/50 ring-1 ring-brand shadow-sm text-brand" 
+                        : "bg-card border-border text-muted-foreground hover:border-brand/30"
+                    } disabled:opacity-50`}
+                  >
+                    <div className="font-semibold text-sm">⚡ Quick Overview</div>
+                    <div className="text-xs opacity-80 mt-1">Fast summary, no deep reading (~15s)</div>
+                  </button>
+                  <button
+                    onClick={() => setDepth("deep")}
+                    disabled={running}
+                    className={`flex-1 py-3 px-4 rounded-xl border text-left transition-all ${
+                      depth === "deep" 
+                        ? "bg-brand/10 border-brand/50 ring-1 ring-brand shadow-sm text-brand" 
+                        : "bg-card border-border text-muted-foreground hover:border-brand/30"
+                    } disabled:opacity-50`}
+                  >
+                    <div className="font-semibold text-sm">🔬 Deep Dive</div>
+                    <div className="text-xs opacity-80 mt-1">Comprehensive 3-page report (~60s)</div>
+                  </button>
+                </div>
+              </div>
               <button
                 onClick={handleStartResearch}
                 disabled={!topic.trim() || running}
-                className="bg-brand text-brand-foreground text-sm font-medium py-2.5 px-6 rounded-md ring-1 ring-brand shadow-sm hover:opacity-95 disabled:opacity-50 inline-flex items-center gap-2"
+                className="bg-brand text-brand-foreground h-[68px] text-sm font-medium px-8 rounded-xl ring-1 ring-brand shadow-sm hover:opacity-95 disabled:opacity-50 inline-flex items-center gap-2"
               >
                 {running ? (
                   <>
-                    <Loader2 className="size-4 animate-spin" /> Processing...
+                    <Loader2 className="size-5 animate-spin" />
                   </>
                 ) : (
                   <>
-                    <Sparkles className="size-4" /> Start research
+                    <Sparkles className="size-5" /> Start
                   </>
                 )}
               </button>

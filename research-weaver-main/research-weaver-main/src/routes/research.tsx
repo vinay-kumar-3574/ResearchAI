@@ -17,6 +17,8 @@ import {
   Share2,
   Loader2,
   Info,
+  ChevronLeft,
+  ChevronRight,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -309,6 +311,8 @@ function ReportTab({
   onCopy: () => void;
   onDownload: () => void;
 }) {
+  const [currentPage, setCurrentPage] = useState(0);
+
   if (!s.reportContent) {
     return (
       <div className="bg-card p-10 rounded-2xl ring-1 ring-black/5 text-center text-muted-foreground text-sm">
@@ -318,30 +322,66 @@ function ReportTab({
   }
 
   const cleanedReport = s.reportContent.replace(/<think>[\s\S]*?<\/think>\n*/g, "");
+  
+  // Split the markdown by H2 (##) or H1 (#) to create visual "pages"
+  const pages = cleanedReport.split(/(?=\n##? )/).filter(p => p.trim());
 
   return (
-    <article className="bg-card p-8 md:p-10 rounded-2xl ring-1 ring-black/5 shadow-sm">
-      <div className="max-w-[64ch] mx-auto">
-        <div className="flex justify-end gap-2 mb-6">
-          <button
-            onClick={onCopy}
-            className="text-xs text-muted-foreground hover:text-foreground inline-flex items-center gap-1.5"
-          >
-            <Copy className="size-3.5" /> Copy
-          </button>
-          <button
-            onClick={onDownload}
-            className="text-xs text-muted-foreground hover:text-foreground inline-flex items-center gap-1.5"
-          >
-            <Download className="size-3.5" /> Export .md
-          </button>
-        </div>
-        {/* Render beautiful markdown */}
-        <div className="prose prose-sm dark:prose-invert max-w-none text-muted-foreground leading-relaxed">
-          <ReactMarkdown>{cleanedReport}</ReactMarkdown>
-        </div>
+    <div className="space-y-4">
+      <div className="flex justify-end gap-2 mb-2">
+        <button
+          onClick={onCopy}
+          className="text-xs font-medium text-muted-foreground hover:text-foreground inline-flex items-center gap-1.5"
+        >
+          <Copy className="size-3.5" /> Copy Full Report
+        </button>
+        <button
+          onClick={onDownload}
+          className="text-xs font-medium text-muted-foreground hover:text-foreground inline-flex items-center gap-1.5"
+        >
+          <Download className="size-3.5" /> Export .md
+        </button>
       </div>
-    </article>
+
+      <div className="relative">
+        <article className="bg-card p-10 md:p-14 rounded-2xl ring-1 ring-black/5 shadow-md relative overflow-hidden min-h-[400px]">
+          {pages.length > 1 && (
+            <div className="absolute bottom-6 right-8 text-[10px] font-mono text-muted-foreground/40 font-bold uppercase tracking-widest">
+              Page {currentPage + 1} of {pages.length}
+            </div>
+          )}
+          <div className="max-w-[65ch] mx-auto">
+            <div className="prose prose-sm dark:prose-invert max-w-none text-muted-foreground leading-relaxed">
+              <ReactMarkdown>{pages[currentPage]}</ReactMarkdown>
+            </div>
+          </div>
+        </article>
+      </div>
+
+      {pages.length > 1 && (
+        <div className="flex items-center justify-between mt-4">
+          <button
+            onClick={() => setCurrentPage(p => Math.max(0, p - 1))}
+            disabled={currentPage === 0}
+            className="flex items-center gap-2 px-4 py-2 text-sm font-medium rounded-lg border border-border bg-card text-foreground disabled:opacity-40 hover:bg-muted transition-colors cursor-pointer"
+          >
+            <ChevronLeft className="size-4" /> Previous
+          </button>
+          
+          <div className="text-xs font-bold text-muted-foreground tracking-widest">
+            {currentPage + 1} / {pages.length}
+          </div>
+
+          <button
+            onClick={() => setCurrentPage(p => Math.min(pages.length - 1, p + 1))}
+            disabled={currentPage === pages.length - 1}
+            className="flex items-center gap-2 px-4 py-2 text-sm font-medium rounded-lg border border-border bg-card text-foreground disabled:opacity-40 hover:bg-muted transition-colors cursor-pointer"
+          >
+            Next <ChevronRight className="size-4" />
+          </button>
+        </div>
+      )}
+    </div>
   );
 }
 

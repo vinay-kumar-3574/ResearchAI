@@ -218,6 +218,7 @@ export async function deleteSession(sessionId: string): Promise<void> {
 
 export function startResearch(
   topic: string,
+  depth: "quick" | "deep",
   userId: string,
   onUpdate: (update: StageUpdate) => void,
   onError: (error: string) => void,
@@ -228,7 +229,7 @@ export function startResearch(
   fetch(`${API_URL}/api/research/stream`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ topic, user_id: userId }),
+    body: JSON.stringify({ topic, user_id: userId, depth }),
     signal: controller.signal,
   })
     .then(async (response) => {

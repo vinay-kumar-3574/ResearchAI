@@ -50,6 +50,7 @@ app.add_middleware(
 class ResearchRequest(BaseModel):
     topic: str
     user_id: str
+    depth: str = "deep"
 
 
 class DeleteRequest(BaseModel):
@@ -80,11 +81,9 @@ async def research_stream(req: ResearchRequest):
             yield f"data: {json.dumps({'stage': 'search', 'status': 'running'})}\n\n"
             await asyncio.sleep(0)  # Yield control to flush
 
-            search_agent = build_search_agent()
-            search_result = search_agent.invoke({
-                "messages": [("user", f"find recent and reliable information on {req.topic}.")]
-            })
-            search_content = search_result["messages"][-1].content
+            from tools import web_search
+            # Bypass the conversational LLM agent to guarantee raw, structured results are saved
+            search_content = web_search.invoke(req.topic)
 
             # Parse and save search results to DB
             parsed_results = save_search_results(session_id, search_content)
@@ -93,45 +92,64 @@ async def research_stream(req: ResearchRequest):
 
             yield f"data: {json.dumps({'stage': 'search', 'status': 'done', 'result_count': len(parsed_results), 'preview': search_content[:300]})}\n\n"
 
-            # ── Stage 2: Reader Agent ─────────────────────────────
-            update_session_status(session_id, "scraping")
-            yield f"data: {json.dumps({'stage': 'read', 'status': 'running'})}\n\n"
-            await asyncio.sleep(0)
-
-            reader_agent = build_reader_agent()
-            reader_result = reader_agent.invoke({
-                "messages": [("user",
-                              f"Based on the following search results about '{req.topic}', "
-                              f"pick the most relevant URL and scrape it for deeper content.\n\n"
-                              f"Search Results:\n{search_content[:1000]}  "
-                              )]
-            })
-            scraped_content = reader_result["messages"][-1].content
-
-            # Try to extract URL from search results for storage
+            # ── Stage 2: Reader Agent / Scraping ──────────────────────
+            scraped_content = ""
             source_url = ""
-            if parsed_results:
-                source_url = parsed_results[0].get("url", "")
+            if req.depth == "deep":
+                update_session_status(session_id, "scraping")
+                yield f"data: {json.dumps({'stage': 'read', 'status': 'running'})}\n\n"
+                await asyncio.sleep(0)
 
-            save_scraped_content(session_id, scraped_content, source_url)
-            update_session_status(session_id, "scraping",
-                                  scrape_completed_at=datetime.now(timezone.utc).isoformat())
+                # For deep dive, scrape top 3 URLs directly to gather massive context
+                from tools import web_scrapper
+                for i in range(min(3, len(parsed_results))):
+                    url = parsed_results[i].get("url")
+                    if url:
+                        try:
+                            # Invoke tool directly for speed
+                            content = web_scrapper.invoke(url)
+                            scraped_content += f"\n\n--- Source {i+1}: {url} ---\n{content}\n"
+                            if i == 0: source_url = url
+                        except:
+                            pass
 
-            yield f"data: {json.dumps({'stage': 'read', 'status': 'done', 'chars': len(scraped_content), 'url': source_url})}\n\n"
+                save_scraped_content(session_id, scraped_content, source_url)
+                update_session_status(session_id, "scraping",
+                                      scrape_completed_at=datetime.now(timezone.utc).isoformat())
+
+                yield f"data: {json.dumps({'stage': 'read', 'status': 'done', 'chars': len(scraped_content), 'url': source_url})}\n\n"
+            else:
+                yield f"data: {json.dumps({'stage': 'read', 'status': 'done', 'chars': 0, 'url': ''})}\n\n"
 
             # ── Stage 3: Writer Agent ─────────────────────────────
             update_session_status(session_id, "writing")
             yield f"data: {json.dumps({'stage': 'write', 'status': 'running'})}\n\n"
             await asyncio.sleep(0)
 
-            research_combined = (
-                f"SEARCH RESULTS : \n {search_content} \n\n"
-                f"DETAILED SCRAPED CONTENT : \n {scraped_content}"
+            research_combined = f"SEARCH RESULTS : \n {search_content} \n\n"
+            if req.depth == "deep":
+                research_combined += f"DETAILED SCRAPED CONTENT (Multiple Sources) : \n {scraped_content}"
+
+            instructions = (
+                "You are tasked with writing a BOOK-CHAPTER length report. You MUST output at least 1500 words. "
+                "Do NOT write a short summary. You must strictly use the following structure and write at least 3 long, detailed paragraphs for EACH section:\n"
+                "## 1. Executive Summary\n"
+                "## 2. Historical Background & Context\n"
+                "## 3. Deep Dive Analysis of Finding 1\n"
+                "## 4. Deep Dive Analysis of Finding 2\n"
+                "## 5. Deep Dive Analysis of Finding 3\n"
+                "## 6. Deep Dive Analysis of Finding 4\n"
+                "## 7. Implications & Future Outlook\n"
+                "## 8. Comprehensive Conclusion\n"
+                "Elaborate extensively using the provided research. DO NOT skip any sections."
+                if req.depth == "deep" else
+                "Write a fast, punchy summary consisting of an introduction, two key findings, and a brief conclusion. Keep it under 400 words. Do not make it too long."
             )
 
             report = writer_chain.invoke({
                 "topic": req.topic,
-                "research": research_combined
+                "research": research_combined,
+                "instructions": instructions
             })
 
             save_research_report(session_id, report)

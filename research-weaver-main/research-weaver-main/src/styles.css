@@ -54,8 +54,10 @@
   --radius: 0.625rem;
 
   /* Neutral palette tuned to neutral-50 / slate */
-  --background: oklch(0.985 0.002 247);   /* ~ #f8fafc */
-  --foreground: oklch(0.21 0.02 264);     /* near #171717 */
+  --background: oklch(0.985 0.002 247);
+  /* ~ #f8fafc */
+  --foreground: oklch(0.21 0.02 264);
+  /* near #171717 */
 
   --card: oklch(1 0 0);
   --card-foreground: oklch(0.21 0.02 264);
@@ -66,7 +68,8 @@
   /* Brand teal #0d9488 */
   --brand: oklch(0.62 0.11 192);
   --brand-foreground: oklch(0.99 0 0);
-  --brand-dark: oklch(0.21 0.04 265);     /* #0f172a */
+  --brand-dark: oklch(0.21 0.04 265);
+  /* #0f172a */
 
   --primary: oklch(0.62 0.11 192);
   --primary-foreground: oklch(0.99 0 0);
@@ -123,7 +126,10 @@
 }
 
 @layer base {
-  * { border-color: var(--color-border); }
+  * {
+    border-color: var(--color-border);
+  }
+
   body {
     background-color: var(--color-background);
     color: var(--color-foreground);
@@ -137,9 +143,15 @@
 }
 
 @keyframes shimmer {
-  0% { background-position: -200% 0; }
-  100% { background-position: 200% 0; }
+  0% {
+    background-position: -200% 0;
+  }
+
+  100% {
+    background-position: 200% 0;
+  }
 }
+
 .shimmer {
   background: linear-gradient(90deg, transparent, oklch(0.62 0.11 192 / 0.3), transparent);
   background-size: 200% 100%;
@@ -155,6 +167,7 @@
   outline: none;
   box-shadow: inset 0 0 0 1px oklch(0 0 0 / 0.05);
   transition: box-shadow 150ms;
+
   &:focus {
     box-shadow: inset 0 0 0 1px oklch(0.62 0.11 192 / 0.4), 0 0 0 3px oklch(0.62 0.11 192 / 0.1);
   }
