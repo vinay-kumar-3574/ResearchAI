@@ -47,6 +47,7 @@ def web_scrapper(url:str)->str:
     except Exception as e:
         return f"Error parsing content: {e}"
 
-print(web_scrapper.invoke("https://en.wikipedia.org/wiki/Artificial_intelligence"))
+# Debug call removed — was firing on every import
+# print(web_scrapper.invoke("https://en.wikipedia.org/wiki/Artificial_intelligence"))
 
 
