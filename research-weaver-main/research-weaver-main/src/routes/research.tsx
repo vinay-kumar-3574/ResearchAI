@@ -1,5 +1,5 @@
 import { Link, useNavigate, useParams } from "react-router-dom";
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { PageShell } from "@/components/layout";
 import { RequireAuth } from "@/components/require-auth";
 import ReactMarkdown from "react-markdown";
@@ -7,6 +7,9 @@ import {
   getSession,
   deleteSession,
   type ResearchSession,
+  getChatHistory,
+  chatWithAssistant,
+  type ChatMessage,
 } from "@/lib/research-store";
 import {
   ArrowLeft,
@@ -19,6 +22,9 @@ import {
   Info,
   ChevronLeft,
   ChevronRight,
+  Send,
+  Bot,
+  User,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -199,7 +205,10 @@ function Detail() {
             {tab === "critique" && c && <CritiqueTab critique={c} />}
           </div>
 
-          <div className="lg:col-span-4 space-y-6">
+          <div className="lg:col-span-4 space-y-6 sticky top-6 h-fit">
+            {/* Chat Panel */}
+            {session.status === "completed" && <ChatPanel sessionId={session.id} />}
+
             {/* Score sidebar */}
             {c && (
               <div className="bg-card p-6 rounded-2xl ring-1 ring-black/5 shadow-sm">
@@ -518,6 +527,146 @@ function Section({
           ))}
         </ul>
       )}
+    </div>
+  );
+}
+
+function ChatPanel({ sessionId }: { sessionId: string }) {
+  const [messages, setMessages] = useState<ChatMessage[]>([]);
+  const [input, setInput] = useState("");
+  const [isLoading, setIsLoading] = useState(false);
+  const scrollRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    getChatHistory(sessionId).then(setMessages);
+  }, [sessionId]);
+
+  useEffect(() => {
+    if (scrollRef.current) {
+      scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
+    }
+  }, [messages, isLoading]);
+
+  const handleSend = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!input.trim() || isLoading) return;
+    
+    const userMsg = input.trim();
+    setInput("");
+    setMessages(prev => [...prev, { role: "user", content: userMsg }]);
+    setIsLoading(true);
+
+    let assistantContent = "";
+    
+    chatWithAssistant(
+      sessionId,
+      userMsg,
+      (chunk) => {
+        assistantContent += chunk;
+        setMessages(prev => {
+          const newMsgs = [...prev];
+          // If the last message is from assistant and we are loading, we append to it
+          const lastMsg = newMsgs[newMsgs.length - 1];
+          if (lastMsg.role === "assistant" && lastMsg.id === "streaming") {
+            lastMsg.content = assistantContent;
+          } else {
+            // First chunk: add new assistant message
+            newMsgs.push({ id: "streaming", role: "assistant", content: assistantContent });
+          }
+          return newMsgs;
+        });
+      },
+      (error) => {
+        toast.error(error);
+        setIsLoading(false);
+      },
+      () => {
+        setMessages(prev => {
+          const newMsgs = [...prev];
+          const lastMsg = newMsgs[newMsgs.length - 1];
+          if (lastMsg.role === "assistant" && lastMsg.id === "streaming") {
+            delete lastMsg.id; // remove streaming flag
+          }
+          return newMsgs;
+        });
+        setIsLoading(false);
+      }
+    );
+  };
+
+  return (
+    <div className="bg-card flex flex-col rounded-2xl ring-1 ring-black/5 shadow-sm overflow-hidden" style={{ height: "500px" }}>
+      <div className="bg-brand text-brand-foreground px-4 py-3 flex items-center gap-2 shadow-sm z-10">
+        <Bot className="size-4" />
+        <h3 className="font-semibold text-sm">Research Assistant</h3>
+      </div>
+      
+      <div 
+        ref={scrollRef}
+        className="flex-1 overflow-y-auto p-4 space-y-4 bg-muted/20"
+      >
+        {messages.length === 0 ? (
+          <div className="h-full flex flex-col items-center justify-center text-center text-muted-foreground p-6">
+            <Bot className="size-10 mb-3 opacity-20" />
+            <p className="text-sm font-medium">Ask me anything about this research!</p>
+            <p className="text-xs mt-1 opacity-70">I have full context of the report and sources.</p>
+          </div>
+        ) : (
+          messages.map((m, i) => (
+            <div key={i} className={`flex gap-3 ${m.role === 'user' ? 'flex-row-reverse' : ''}`}>
+              <div className={`shrink-0 size-8 rounded-full flex items-center justify-center ${m.role === 'user' ? 'bg-brand text-brand-foreground' : 'bg-muted text-muted-foreground'}`}>
+                {m.role === 'user' ? <User className="size-4" /> : <Bot className="size-4" />}
+              </div>
+              <div className={`flex flex-col ${m.role === 'user' ? 'items-end' : 'items-start'} max-w-[80%]`}>
+                <div className={`text-sm px-4 py-2.5 rounded-2xl ${m.role === 'user' ? 'bg-brand text-brand-foreground rounded-tr-sm' : 'bg-card ring-1 ring-black/5 text-foreground rounded-tl-sm'}`}>
+                  {m.role === 'user' ? (
+                    <div className="whitespace-pre-wrap">{m.content}</div>
+                  ) : (
+                    <div className="prose prose-sm dark:prose-invert max-w-none prose-p:my-0 leading-relaxed text-pretty">
+                      <ReactMarkdown>{m.content}</ReactMarkdown>
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+          ))
+        )}
+        {isLoading && messages[messages.length - 1]?.role === "user" && (
+          <div className="flex gap-3">
+            <div className="shrink-0 size-8 rounded-full bg-muted text-muted-foreground flex items-center justify-center">
+              <Bot className="size-4" />
+            </div>
+            <div className="bg-card ring-1 ring-black/5 rounded-2xl rounded-tl-sm px-4 py-3 flex items-center gap-1.5">
+              <span className="size-1.5 bg-brand/40 rounded-full animate-bounce [animation-delay:-0.3s]"></span>
+              <span className="size-1.5 bg-brand/40 rounded-full animate-bounce [animation-delay:-0.15s]"></span>
+              <span className="size-1.5 bg-brand/40 rounded-full animate-bounce"></span>
+            </div>
+          </div>
+        )}
+      </div>
+
+      <form onSubmit={handleSend} className="p-3 bg-card border-t border-border flex items-end gap-2">
+        <textarea
+          value={input}
+          onChange={(e) => setInput(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter' && !e.shiftKey) {
+              e.preventDefault();
+              handleSend(e);
+            }
+          }}
+          placeholder="Ask a question..."
+          className="flex-1 max-h-32 min-h-10 bg-muted/50 resize-none rounded-xl border-0 focus:ring-1 focus:ring-brand px-3 py-2.5 text-sm"
+          rows={1}
+        />
+        <button
+          type="submit"
+          disabled={!input.trim() || isLoading}
+          className="shrink-0 size-10 flex items-center justify-center rounded-xl bg-brand text-brand-foreground hover:bg-brand/90 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+        >
+          <Send className="size-4" />
+        </button>
+      </form>
     </div>
   );
 }

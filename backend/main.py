@@ -13,6 +13,8 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 
+import groq
+
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -33,7 +35,13 @@ from backend.supabase_client import (
     get_search_results,
     get_dashboard_stats,
     delete_session as db_delete_session,
+    save_chat_message,
+    get_chat_messages,
 )
+
+# Groq Client specifically for Chat
+GROQ_API_KEY_CHAT = os.getenv("GROQ_API_KEY_CHAT")
+groq_client = groq.AsyncGroq(api_key=GROQ_API_KEY_CHAT)
 
 app = FastAPI(title="ResearchAI API", version="1.0.0")
 
@@ -55,6 +63,10 @@ class ResearchRequest(BaseModel):
 
 class DeleteRequest(BaseModel):
     session_id: str
+
+
+class ChatMessageRequest(BaseModel):
+    message: str
 
 
 @app.get("/api/health")
@@ -236,6 +248,95 @@ def delete_session_endpoint(session_id: str):
     try:
         db_delete_session(session_id)
         return {"status": "deleted"}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/api/sessions/{session_id}/chat")
+async def chat_with_assistant(session_id: str, req: ChatMessageRequest):
+    """Stream a chat response using Llama-3.3-70B and session context."""
+    # 1. Save user message
+    save_chat_message(session_id, "user", req.message)
+
+    # 2. Get session context
+    detail = get_session_detail(session_id)
+    search_results = get_search_results(session_id)
+    
+    if not detail:
+        raise HTTPException(status_code=404, detail="Session not found")
+
+    # Build context string
+    context = f"Topic: {detail.get('topic')}\n\n"
+    if detail.get('report_content'):
+        context += f"Report:\n{detail.get('report_content')}\n\n"
+    
+    if search_results:
+        context += "Sources:\n"
+        for r in search_results:
+            context += f"- {r.get('title')} ({r.get('url')}): {r.get('content_snippet')}\n"
+
+    system_prompt = {
+        "role": "system",
+        "content": (
+            "You are an expert research assistant. "
+            "You are having a follow-up conversation with the user about a research report you just generated. "
+            "Use the provided context (report and sources) to answer the user's questions. "
+            "If the answer is not in the context, say you don't know based on the current research, but provide your best general knowledge if helpful.\n\n"
+            f"=== RESEARCH CONTEXT ===\n{context}"
+        )
+    }
+
+    # 3. Get history (limit to last 10 messages)
+    history = get_chat_messages(session_id, limit=10)
+    messages = [system_prompt]
+    for msg in history:
+        messages.append({"role": msg["role"], "content": msg["content"]})
+    
+    # ensure current message is in there (already in history because we saved it above)
+    # Actually, get_chat_messages ordered by created_at DESC limit 10 will include the user message we just saved.
+    # So we don't need to append it again.
+
+    async def generate():
+        full_response = ""
+        try:
+            stream = await groq_client.chat.completions.create(
+                model="llama-3.3-70b-versatile",
+                messages=messages,
+                stream=True,
+                temperature=0.3,
+            )
+            async for chunk in stream:
+                content = chunk.choices[0].delta.content
+                if content:
+                    full_response += content
+                    yield f"data: {json.dumps({'content': content})}\n\n"
+            
+            # 4. Save assistant response
+            save_chat_message(session_id, "assistant", full_response)
+            yield "data: [DONE]\n\n"
+            
+        except Exception as e:
+            error_msg = str(e)
+            print(f"Chat error: {error_msg}")
+            yield f"data: {json.dumps({'error': error_msg})}\n\n"
+
+    return StreamingResponse(
+        generate(),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "Connection": "keep-alive",
+            "X-Accel-Buffering": "no",
+        },
+    )
+
+
+@app.get("/api/sessions/{session_id}/chat")
+def get_chat_history(session_id: str):
+    """Get chat history for a session."""
+    try:
+        messages = get_chat_messages(session_id, limit=50)
+        return {"messages": messages}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 

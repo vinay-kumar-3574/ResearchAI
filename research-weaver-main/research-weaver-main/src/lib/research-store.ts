@@ -11,6 +11,13 @@ const API_URL = import.meta.env.VITE_API_URL || "http://localhost:8000";
 
 // ─── Types ──────────────────────────────────────────────────
 
+export type ChatMessage = {
+  id?: string;
+  role: 'user' | 'assistant' | 'system';
+  content: string;
+  created_at?: string;
+};
+
 export type SearchResult = {
   id: string;
   title: string;
@@ -323,3 +330,83 @@ export async function getDashboardStats(userId: string): Promise<DashboardStats>
     last_research_topic: sorted[0]?.topic || null,
   };
 }
+
+// ─── Chat Api ───────────────────────────────────────────────
+
+export async function getChatHistory(sessionId: string): Promise<ChatMessage[]> {
+  try {
+    const res = await fetch(`${API_URL}/api/sessions/${sessionId}/chat`);
+    if (!res.ok) throw new Error("Failed to load chat history");
+    const data = await res.json();
+    return data.messages || [];
+  } catch (err) {
+    console.error(err);
+    return [];
+  }
+}
+
+export function chatWithAssistant(
+  sessionId: string,
+  message: string,
+  onChunk: (chunk: string) => void,
+  onError: (error: string) => void,
+  onComplete: () => void
+): () => void {
+  const controller = new AbortController();
+
+  fetch(`${API_URL}/api/sessions/${sessionId}/chat`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ message }),
+    signal: controller.signal,
+  })
+    .then(async (response) => {
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+      }
+
+      const reader = response.body?.getReader();
+      if (!reader) throw new Error("No response body");
+
+      const decoder = new TextDecoder();
+      let buffer = "";
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split("\n");
+        buffer = lines.pop() || "";
+
+        for (const line of lines) {
+          if (line.startsWith("data: ")) {
+            const dataStr = line.slice(6);
+            if (dataStr === "[DONE]") {
+              onComplete();
+              return;
+            }
+            try {
+              const parsed = JSON.parse(dataStr);
+              if (parsed.error) {
+                onError(parsed.error);
+              } else if (parsed.content) {
+                onChunk(parsed.content);
+              }
+            } catch {
+              // Ignore parse errors for incomplete chunks if any
+            }
+          }
+        }
+      }
+      onComplete();
+    })
+    .catch((err) => {
+      if (err.name !== "AbortError") {
+        onError(err.message || "Failed to chat with assistant");
+      }
+    });
+
+  return () => controller.abort();
+}
+

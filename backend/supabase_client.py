@@ -215,3 +215,22 @@ def get_dashboard_stats(user_id: str):
 def delete_session(session_id: str):
     """Delete a research session (cascades to all related tables)."""
     supabase.table("research_sessions").delete().eq("id", session_id).execute()
+
+
+def save_chat_message(session_id: str, role: str, content: str):
+    """Save a chat message to the database."""
+    supabase.table("chat_messages").insert({
+        "session_id": session_id,
+        "role": role,
+        "content": content
+    }).execute()
+
+
+def get_chat_messages(session_id: str, limit: int = 20):
+    """Get recent chat messages for a session, ordered by creation time."""
+    # We fetch ordered by created_at DESC to get the latest, then reverse in Python
+    # so they are chronological.
+    result = supabase.table("chat_messages").select("*").eq("session_id", session_id).order("created_at", desc=True).limit(limit).execute()
+    messages = result.data
+    messages.reverse()
+    return messages
