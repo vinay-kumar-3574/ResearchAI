@@ -112,8 +112,9 @@ function Detail() {
       return;
     try {
       await deleteSession(session.id);
+      window.dispatchEvent(new Event("refresh-sidebar")); // trigger sync
       toast.success("Session deleted");
-      navigate("/history");
+      navigate("/dashboard");
     } catch {
       toast.error("Failed to delete session");
     }
@@ -124,10 +125,10 @@ function Detail() {
       <div className="max-w-7xl mx-auto px-6 py-10">
         <div className="flex items-center justify-between gap-4 flex-wrap mb-6">
           <button
-            onClick={() => navigate("/history")}
+            onClick={() => navigate("/dashboard")}
             className="text-sm text-muted-foreground hover:text-foreground inline-flex items-center gap-1.5"
           >
-            <ArrowLeft className="size-4" /> Back to history
+            <ArrowLeft className="size-4" /> Back to dashboard
           </button>
           <div className="flex items-center gap-2">
             <button

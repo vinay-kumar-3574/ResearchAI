@@ -1,7 +1,8 @@
 import { Link, useNavigate, useLocation } from "react-router-dom";
 import { useState, type ReactNode } from "react";
 import { useAuth } from "@/lib/auth";
-import { ChevronDown, LogOut, Menu, Settings, User as UserIcon, X } from "lucide-react";
+import { Menu, X } from "lucide-react";
+import { AppSidebar } from "./sidebar";
 
 function Logo() {
   return (
@@ -65,104 +66,6 @@ export function PublicNav() {
   );
 }
 
-export function AppNav() {
-  const { user, logout } = useAuth();
-  const navigate = useNavigate();
-  const location = useLocation();
-  const path = location.pathname;
-  const [menuOpen, setMenuOpen] = useState(false);
-  const [mobile, setMobile] = useState(false);
-
-  const initials = (user?.name ?? "U")
-    .split(" ")
-    .map((p) => p[0])
-    .slice(0, 2)
-    .join("")
-    .toUpperCase();
-
-  const navLink = (to: string, label: string) => {
-    const active = path === to || (to !== "/dashboard" && path.startsWith(to));
-    return (
-      <Link
-        to={to}
-        className={`text-sm font-medium transition-colors ${active ? "text-brand" : "text-muted-foreground hover:text-foreground"}`}
-      >
-        {label}
-      </Link>
-    );
-  };
-
-  const handleLogout = () => {
-    logout();
-    navigate("/login");
-  };
-
-  return (
-    <nav className="sticky top-0 z-50 bg-background/80 backdrop-blur-md border-b border-border">
-      <div className="max-w-7xl mx-auto px-6 h-16 flex items-center justify-between">
-        <div className="flex items-center gap-8">
-          <Logo />
-          <div className="hidden md:flex items-center gap-6">
-            {navLink("/dashboard", "Dashboard")}
-            {navLink("/history", "History")}
-            {navLink("/settings", "Settings")}
-          </div>
-        </div>
-        <div className="hidden md:flex items-center gap-3 relative">
-          <button
-            onClick={() => setMenuOpen((v) => !v)}
-            className="flex items-center gap-2 rounded-md px-2 py-1.5 hover:bg-accent transition-colors"
-          >
-            <div className="size-8 rounded-full bg-brand-dark text-white flex items-center justify-center text-xs font-semibold font-mono">
-              {initials}
-            </div>
-            <div className="text-left leading-tight">
-              <div className="text-xs font-medium text-foreground">{user?.name ?? "Guest"}</div>
-              <div className="text-[10px] text-muted-foreground font-mono uppercase">Researcher</div>
-            </div>
-            <ChevronDown className="size-3.5 text-muted-foreground" />
-          </button>
-          {menuOpen && (
-            <div className="absolute right-0 top-12 w-52 rounded-lg bg-card ring-1 ring-black/5 shadow-lg p-1 z-50">
-              <Link
-                to="/settings"
-                onClick={() => setMenuOpen(false)}
-                className="flex items-center gap-2 px-3 py-2 text-sm rounded hover:bg-accent"
-              >
-                <UserIcon className="size-3.5" /> Profile
-              </Link>
-              <Link
-                to="/settings"
-                onClick={() => setMenuOpen(false)}
-                className="flex items-center gap-2 px-3 py-2 text-sm rounded hover:bg-accent"
-              >
-                <Settings className="size-3.5" /> Settings
-              </Link>
-              <button
-                onClick={handleLogout}
-                className="w-full flex items-center gap-2 px-3 py-2 text-sm rounded hover:bg-accent text-destructive"
-              >
-                <LogOut className="size-3.5" /> Log out
-              </button>
-            </div>
-          )}
-        </div>
-        <button className="md:hidden" onClick={() => setMobile((v) => !v)} aria-label="Menu">
-          {mobile ? <X className="size-5" /> : <Menu className="size-5" />}
-        </button>
-      </div>
-      {mobile && (
-        <div className="md:hidden border-t border-border bg-background px-6 py-4 flex flex-col gap-3">
-          <Link to="/dashboard" className="text-sm">Dashboard</Link>
-          <Link to="/history" className="text-sm">History</Link>
-          <Link to="/settings" className="text-sm">Settings</Link>
-          <button onClick={handleLogout} className="text-sm text-destructive text-left">Log out</button>
-        </div>
-      )}
-    </nav>
-  );
-}
-
 export function Footer() {
   return (
     <footer className="bg-card border-t border-border py-16 mt-20">
@@ -207,10 +110,65 @@ export function Footer() {
   );
 }
 
+export function AppSidebarLayout({ children }: { children: ReactNode }) {
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+
+  // Close mobile menu on navigation
+  const location = useLocation();
+  useState(() => {
+    setMobileMenuOpen(false);
+  });
+
+  return (
+    <div className="flex h-screen overflow-hidden bg-background">
+      {/* Desktop Sidebar */}
+      <div className="hidden md:flex">
+        <AppSidebar />
+      </div>
+
+      {/* Mobile Drawer */}
+      {mobileMenuOpen && (
+        <div className="fixed inset-0 z-50 flex md:hidden">
+          <div className="fixed inset-0 bg-black/50" onClick={() => setMobileMenuOpen(false)} />
+          <div className="relative flex w-64 max-w-sm flex-col bg-[#171717]">
+            <button
+              className="absolute right-[-40px] top-4 p-2 text-white bg-black/50 rounded-md"
+              onClick={() => setMobileMenuOpen(false)}
+            >
+              <X className="size-5" />
+            </button>
+            <AppSidebar />
+          </div>
+        </div>
+      )}
+
+      {/* Main Content Area */}
+      <div className="flex-1 flex flex-col min-w-0">
+        {/* Mobile Header */}
+        <div className="md:hidden flex items-center justify-between p-4 border-b border-border bg-background">
+          <Logo />
+          <button onClick={() => setMobileMenuOpen(true)}>
+            <Menu className="size-5" />
+          </button>
+        </div>
+        
+        {/* Page Content */}
+        <main className="flex-1 overflow-y-auto">
+          {children}
+        </main>
+      </div>
+    </div>
+  );
+}
+
 export function PageShell({ children, nav = "app" }: { children: ReactNode; nav?: "app" | "public" }) {
+  if (nav === "app") {
+    return <AppSidebarLayout>{children}</AppSidebarLayout>;
+  }
+
   return (
     <div className="min-h-screen flex flex-col bg-background">
-      {nav === "app" ? <AppNav /> : <PublicNav />}
+      <PublicNav />
       <main className="flex-1">{children}</main>
       <Footer />
     </div>

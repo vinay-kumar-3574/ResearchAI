@@ -37,6 +37,11 @@ from backend.supabase_client import (
     delete_session as db_delete_session,
     save_chat_message,
     get_chat_messages,
+    get_folders,
+    create_folder,
+    update_folder,
+    delete_folder,
+    update_session_folder,
 )
 
 # Groq Client specifically for Chat
@@ -67,6 +72,19 @@ class DeleteRequest(BaseModel):
 
 class ChatMessageRequest(BaseModel):
     message: str
+
+
+class FolderRequest(BaseModel):
+    name: str
+    user_id: str
+
+
+class RenameFolderRequest(BaseModel):
+    name: str
+
+
+class UpdateSessionFolderRequest(BaseModel):
+    folder_id: str | None
 
 
 @app.get("/api/health")
@@ -337,6 +355,55 @@ def get_chat_history(session_id: str):
     try:
         messages = get_chat_messages(session_id, limit=50)
         return {"messages": messages}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+# ── Folders API ───────────────────────────────────────────────
+
+@app.get("/api/folders/{user_id}")
+def api_get_folders(user_id: str):
+    try:
+        folders = get_folders(user_id)
+        return {"folders": folders}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/api/folders")
+def api_create_folder(req: FolderRequest):
+    try:
+        folder = create_folder(req.user_id, req.name)
+        return {"folder": folder}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.put("/api/folders/{folder_id}")
+def api_update_folder(folder_id: str, req: RenameFolderRequest):
+    try:
+        folder = update_folder(folder_id, req.name)
+        if not folder:
+            raise HTTPException(status_code=404, detail="Folder not found")
+        return {"folder": folder}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.delete("/api/folders/{folder_id}")
+def api_delete_folder(folder_id: str):
+    try:
+        delete_folder(folder_id)
+        return {"status": "deleted"}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.put("/api/sessions/{session_id}/folder")
+def api_update_session_folder(session_id: str, req: UpdateSessionFolderRequest):
+    try:
+        session = update_session_folder(session_id, req.folder_id)
+        return {"session": session}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 

@@ -11,6 +11,13 @@ const API_URL = import.meta.env.VITE_API_URL || "http://localhost:8000";
 
 // ─── Types ──────────────────────────────────────────────────
 
+export type Folder = {
+  id: string;
+  user_id: string;
+  name: string;
+  created_at: string;
+};
+
 export type ChatMessage = {
   id?: string;
   role: 'user' | 'assistant' | 'system';
@@ -53,6 +60,7 @@ export type ResearchSession = {
   createdAt: string;
   overallScore: number | null;
   reportPreview: string | null;
+  folder_id?: string | null;
   // Full detail fields (populated when viewing a single session)
   searchResults?: SearchResult[];
   scrapedUrl?: string;
@@ -100,6 +108,7 @@ export async function loadSessions(userId: string): Promise<ResearchSession[]> {
       status,
       overall_score,
       created_at,
+      folder_id,
       research_reports (report_content)
     `)
     .eq("user_id", userId)
@@ -116,6 +125,7 @@ export async function loadSessions(userId: string): Promise<ResearchSession[]> {
     status: row.status,
     createdAt: row.created_at,
     overallScore: row.overall_score,
+    folder_id: row.folder_id,
     reportPreview: row.research_reports?.[0]?.report_content?.slice(0, 200) || null,
   }));
 }
@@ -186,6 +196,7 @@ export async function getSession(sessionId: string): Promise<ResearchSession | n
     status: session.status,
     createdAt: session.created_at,
     overallScore: session.overall_score,
+    folder_id: session.folder_id,
     reportPreview: report?.report_content?.slice(0, 200) || null,
     searchResults: (searchResults || []).map((r: any) => ({
       id: r.id,
@@ -410,3 +421,49 @@ export function chatWithAssistant(
   return () => controller.abort();
 }
 
+// ─── Folders Api ──────────────────────────────────────────────
+
+export async function loadFolders(userId: string): Promise<Folder[]> {
+  const res = await fetch(`${API_URL}/api/folders/${userId}`);
+  if (!res.ok) throw new Error("Failed to load folders");
+  const data = await res.json();
+  return data.folders || [];
+}
+
+export async function createFolder(userId: string, name: string): Promise<Folder> {
+  const res = await fetch(`${API_URL}/api/folders`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ user_id: userId, name }),
+  });
+  if (!res.ok) throw new Error("Failed to create folder");
+  const data = await res.json();
+  return data.folder;
+}
+
+export async function renameFolder(folderId: string, name: string): Promise<Folder> {
+  const res = await fetch(`${API_URL}/api/folders/${folderId}`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ name }),
+  });
+  if (!res.ok) throw new Error("Failed to rename folder");
+  const data = await res.json();
+  return data.folder;
+}
+
+export async function deleteFolder(folderId: string): Promise<void> {
+  const res = await fetch(`${API_URL}/api/folders/${folderId}`, {
+    method: "DELETE",
+  });
+  if (!res.ok) throw new Error("Failed to delete folder");
+}
+
+export async function moveSessionToFolder(sessionId: string, folderId: string | null): Promise<void> {
+  const res = await fetch(`${API_URL}/api/sessions/${sessionId}/folder`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ folder_id: folderId }),
+  });
+  if (!res.ok) throw new Error("Failed to move session");
+}

@@ -234,3 +234,34 @@ def get_chat_messages(session_id: str, limit: int = 20):
     messages = result.data
     messages.reverse()
     return messages
+
+
+# ── Folders ──────────────────────────────────────────────────
+
+def get_folders(user_id: str):
+    """Get all folders for a user."""
+    res = supabase.table("folders").select("*").eq("user_id", user_id).order("created_at", desc=False).execute()
+    return res.data
+
+def create_folder(user_id: str, name: str):
+    """Create a new folder."""
+    res = supabase.table("folders").insert({
+        "user_id": user_id,
+        "name": name
+    }).execute()
+    return res.data[0] if res.data else None
+
+def update_folder(folder_id: str, name: str):
+    """Rename a folder."""
+    res = supabase.table("folders").update({"name": name}).eq("id", folder_id).execute()
+    return res.data[0] if res.data else None
+
+def delete_folder(folder_id: str):
+    """Delete a folder. Sessions will automatically be set to folder_id=null due to ON DELETE SET NULL."""
+    supabase.table("folders").delete().eq("id", folder_id).execute()
+
+def update_session_folder(session_id: str, folder_id: str = None):
+    """Move a session to a folder, or remove it from its folder if folder_id is None."""
+    res = supabase.table("research_sessions").update({"folder_id": folder_id}).eq("id", session_id).execute()
+    return res.data[0] if res.data else None
+

@@ -1,7 +1,6 @@
 import { Routes, Route } from "react-router-dom";
 import Index from "./routes/index";
 import Dashboard from "./routes/dashboard";
-import History from "./routes/history";
 import Settings from "./routes/settings";
 import ResearchDetail from "./routes/research";
 import Login from "./routes/login";
@@ -16,7 +15,6 @@ export default function App() {
       <Route path="/" element={<Index />} />
       <Route path="/about" element={<About />} />
       <Route path="/dashboard" element={<Dashboard />} />
-      <Route path="/history" element={<History />} />
       <Route path="/settings" element={<Settings />} />
       <Route path="/research/:id" element={<ResearchDetail />} />
       

@@ -105,6 +105,9 @@ function Dashboard() {
 
   useEffect(() => {
     refreshData();
+    const handleRefresh = () => refreshData();
+    window.addEventListener("refresh-sidebar", handleRefresh);
+    return () => window.removeEventListener("refresh-sidebar", handleRefresh);
   }, [refreshData]);
 
   const handleStartResearch = () => {
@@ -159,6 +162,7 @@ function Dashboard() {
         setCompletedSessionId(sessionId);
         setRunning(false);
         refreshData(); // Reload sessions list
+        window.dispatchEvent(new Event("refresh-sidebar")); // Tell sidebar to update
       }
     );
   };
@@ -382,12 +386,6 @@ function Dashboard() {
             <h2 className="text-xl font-semibold text-foreground">
               Recent research
             </h2>
-            <Link
-              to="/history"
-              className="text-sm text-brand hover:underline"
-            >
-              View all history →
-            </Link>
           </div>
           {sessions.length === 0 ? (
             <div className="bg-card p-10 rounded-2xl ring-1 ring-black/5 text-center text-muted-foreground text-sm">

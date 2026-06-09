@@ -35,7 +35,7 @@ export default function Signup() {
     if (!valid) return;
     setSubmitting(true);
     try {
-      await signup(name.trim(), email, password);
+      await signup(name.trim(), email.trim(), password);
       toast.success("Account created");
       navigate("/dashboard");
     } finally {

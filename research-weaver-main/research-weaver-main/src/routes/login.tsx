@@ -21,7 +21,7 @@ export default function Login() {
     setSubmitting(true);
     setErr(null);
     try {
-      await login(email, password);
+      await login(email.trim(), password);
       toast.success("Welcome back");
       navigate("/dashboard");
     } catch (e) {
