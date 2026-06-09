@@ -204,12 +204,17 @@ function Detail() {
             )}
             {tab === "search" && <SearchTab s={session} />}
             {tab === "critique" && c && <CritiqueTab critique={c} />}
+
+            {/* Chat Panel moved below the main content */}
+            {session.status === "completed" && (
+              <div className="mt-12">
+                <h3 className="text-xl font-semibold mb-4 text-foreground">Discuss this research</h3>
+                <ChatPanel sessionId={session.id} />
+              </div>
+            )}
           </div>
 
           <div className="lg:col-span-4 space-y-6 sticky top-6 h-fit">
-            {/* Chat Panel */}
-            {session.status === "completed" && <ChatPanel sessionId={session.id} />}
-
             {/* Score sidebar */}
             {c && (
               <div className="bg-card p-6 rounded-2xl ring-1 ring-black/5 shadow-sm">
@@ -596,7 +601,7 @@ function ChatPanel({ sessionId }: { sessionId: string }) {
   };
 
   return (
-    <div className="bg-card flex flex-col rounded-2xl ring-1 ring-black/5 shadow-sm overflow-hidden" style={{ height: "500px" }}>
+    <div className="bg-card flex flex-col rounded-2xl ring-1 ring-black/5 shadow-sm overflow-hidden h-[600px] max-h-[calc(100vh-8rem)] lg:h-[calc(100vh-8rem)]">
       <div className="bg-brand text-brand-foreground px-4 py-3 flex items-center gap-2 shadow-sm z-10">
         <Bot className="size-4" />
         <h3 className="font-semibold text-sm">Research Assistant</h3>
