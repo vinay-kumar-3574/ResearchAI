@@ -111,9 +111,15 @@ async def research_stream(req: ResearchRequest):
             yield f"data: {json.dumps({'stage': 'search', 'status': 'running'})}\n\n"
             await asyncio.sleep(0)  # Yield control to flush
 
-            from tools import web_search
+            from tools import web_search, exa_search
             # Bypass the conversational LLM agent to guarantee raw, structured results are saved
             search_content = web_search.invoke(req.topic)
+            
+            # Combine with Exa search if not in quick mode
+            if req.depth == "academic":
+                search_content += "\n" + exa_search.invoke({"query": req.topic, "academic": True})
+            elif req.depth != "quick":
+                search_content += "\n" + exa_search.invoke({"query": req.topic, "academic": False})
 
             # Parse and save search results to DB
             parsed_results = save_search_results(session_id, search_content)
@@ -131,13 +137,17 @@ async def research_stream(req: ResearchRequest):
                 await asyncio.sleep(0)
 
                 # For deep dive, scrape top 3 URLs directly to gather massive context
-                from tools import web_scrapper
+                from tools import web_scrapper, firecrawl_scraper
                 for i in range(min(3, len(parsed_results))):
                     url = parsed_results[i].get("url")
                     if url:
                         try:
                             # Invoke tool directly for speed
-                            content = web_scrapper.invoke(url)
+                            if req.depth == "quick":
+                                content = web_scrapper.invoke(url)
+                            else:
+                                content = firecrawl_scraper.invoke(url)
+                                
                             scraped_content += f"\n\n--- Source {i+1}: {url} ---\n{content}\n"
                             if i == 0: source_url = url
                         except:
@@ -159,6 +169,12 @@ async def research_stream(req: ResearchRequest):
             research_combined = f"SEARCH RESULTS : \n {search_content} \n\n"
             if req.depth == "deep":
                 research_combined += f"DETAILED SCRAPED CONTENT (Multiple Sources) : \n {scraped_content}"
+                
+            # Safely truncate research to strictly fit Groq Free Tier TPM limit (6000 tokens)
+            MAX_CHARS = 12000
+            if len(research_combined) > MAX_CHARS:
+                research_combined = research_combined[:MAX_CHARS] + "\n\n...[Content Truncated to fit Groq Free Tier context window]..."
+
 
             instructions = (
                 "You are tasked with writing a BOOK-CHAPTER length report. You MUST output at least 1500 words. "
@@ -171,7 +187,7 @@ async def research_stream(req: ResearchRequest):
                 "## 6. Deep Dive Analysis of Finding 4\n"
                 "## 7. Implications & Future Outlook\n"
                 "## 8. Comprehensive Conclusion\n"
-                "Elaborate extensively using the provided research. DO NOT skip any sections."
+                "Elaborate extensively using the provided research. IMPORTANT: You have a strict maximum length limit. You must pace your writing so that you fully complete all 8 sections and provide a proper, complete ending. DO NOT cut off abruptly."
                 if req.depth == "deep" else
                 "Write a fast, punchy summary consisting of an introduction, two key findings, and a brief conclusion. Keep it under 400 words. Do not make it too long."
             )

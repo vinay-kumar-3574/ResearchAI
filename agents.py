@@ -2,8 +2,9 @@ from langchain.agents import create_agent
 from langchain_groq import ChatGroq
 from langchain_core.prompts import ChatPromptTemplate
 from dotenv import load_dotenv
-from  langchain_core.output_parsers import StrOutputParser
-from tools import web_search,web_scrapper
+from langchain_core.output_parsers import StrOutputParser
+from langchain.tools import tool
+from tools import web_search, web_scrapper, exa_search, firecrawl_scraper
 
 import os
 from dotenv import load_dotenv
@@ -16,20 +17,34 @@ llm = ChatGroq(
     temperature=0.2
 )
 
+@tool
+def academic_exa_search(query: str) -> str:
+    """Perform a deep web search using Exa, strictly filtered to academic domains."""
+    return exa_search.invoke({"query": query, "academic": True})
 
+def build_search_agent(depth: str = "standard"):
+    if depth == "quick":
+        tools_list = [web_search]
+    elif depth == "academic":
+        tools_list = [web_search, academic_exa_search]
+    else:
+        tools_list = [web_search, exa_search]
 
-def build_search_agent():
     return create_agent(
         model=llm,
-        tools=[web_search]
+        tools=tools_list
     )
 
 
-def build_reader_agent():
+def build_reader_agent(depth: str = "standard"):
+    if depth == "quick":
+        tools_list = [web_scrapper]
+    else:
+        tools_list = [firecrawl_scraper, web_scrapper]
+
     return create_agent(
         model=llm,
-        tools=[web_scrapper]
-
+        tools=tools_list
     )
 
 # writer chain 
