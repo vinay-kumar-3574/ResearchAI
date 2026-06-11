@@ -50,11 +50,15 @@ app = FastAPI(title="ResearchAI API", version="1.0.0")
 # CORS — allow frontend to call this API
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # In production, restrict to your frontend URL
+    allow_origins=[
+        "http://localhost:5173", 
+        "https://research-ai-wheat.vercel.app"
+    ],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
 
 
 class ResearchRequest(BaseModel):
