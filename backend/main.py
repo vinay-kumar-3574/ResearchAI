@@ -12,6 +12,7 @@ from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
+from typing import Optional
 
 import groq
 
@@ -85,7 +86,7 @@ class RenameFolderRequest(BaseModel):
 
 
 class UpdateSessionFolderRequest(BaseModel):
-    folder_id: str | None
+    folder_id: Optional[str]
 
 
 @app.get("/api/health")
